@@ -19,3 +19,7 @@
 from gpt.algorithms.iterative.cg import cg
 from gpt.algorithms.iterative.irl import irl
 from gpt.algorithms.iterative.power_iteration import power_iteration
+from gpt.algorithms.iterative.fgcr import fgcr
+from gpt.algorithms.iterative.minres import minres
+from gpt.algorithms.iterative.sap import sap
+

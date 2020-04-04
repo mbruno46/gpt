@@ -17,6 +17,7 @@
 #    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 import gpt as g
+import numpy as np
 
 def plaquette(U):
     # U[mu](x)*U[nu](x+mu)*adj(U[mu](x+nu))*adj(U[nu](x))
@@ -26,3 +27,11 @@ def plaquette(U):
         for nu in range(mu):
             tr += g.sum( g.trace(U[mu] * g.cshift( U[nu], mu, 1) * g.adj( g.cshift( U[mu], nu, 1 ) ) * g.adj( U[nu] )) )
     return 2.*tr.real/vol/4./3./3.
+
+def unit(grid):
+    U = []
+    for mu in range(4):
+        links = g.mcolor(grid)
+        links[:] = g.mcolor(np.eye(3))
+        U.append(links)
+    return U
