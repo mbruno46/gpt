@@ -26,8 +26,31 @@ class full:
 class redblack:
     n=2
 
+def str_to_checkerboarding(s):
+    if s == "full":
+        return full
+    elif s == "redblack":
+        return redblack
+    else:
+        assert(0)
+
 class grid:
-    def __init__(self, gdimensions, precision, cb = full, obj = None):
+    def __init__(self, first, second = None, third = None, fourth = None):
+        if type(first) == str:
+            # create from description
+            p=first.split(";")
+            gdimensions=[ int(x) for x in p[0].strip("[]").split(",") ]
+            precision=gpt.str_to_precision(p[1])
+            cb=str_to_checkerboarding(p[2])
+        else:
+            gdimensions=first
+            precision=second
+            if third is None:
+                cb=full
+            else:
+                cb=third
+            obj=fourth
+
         self.gdimensions = gdimensions
         self.gsites = np.prod(self.gdimensions)
         self.precision = precision
@@ -38,13 +61,13 @@ class grid:
         else:
             self.obj = obj
 
+        self.processor,self.Nprocessors,self.processor_coor,self.ldimensions=cgpt.grid_get_processor(self.obj)
+
+    def describe(self): # creates a string without spaces that can be used to construct it again, this should only describe the grid geometry not the mpi/simd
+        return (str(self.gdimensions)+";"+self.precision.__name__+";"+self.cb.__name__).replace(" ","")
+
     def __del__(self):
         cgpt.delete_grid(self.obj)
-
-    def __str__(self):
-        ps = 'single' if self.precision==gpt.single else 'double'
-        cbs= 'full' if self.cb==gpt.full else 'redblack'
-        return 'Grid ' + str(self.gdimensions) + '; Precision = %s' % ps + '; CheckBoard = %s' % cbs
 
     def barrier(self):
         cgpt.grid_barrier(self.obj)

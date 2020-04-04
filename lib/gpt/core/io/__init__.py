@@ -20,15 +20,23 @@ import cgpt
 import gpt
 import gpt.core.io.gpt_io
 
+# expose fast memoryview for numpy arrays
+def mview(data):
+    mv=cgpt.mview(data)
+    assert(mv.obj is data)
+    return mv
+
 # file formats
 class format:
     class gpt:
-        pass
+        def __init__(self, params = {}):
+            self.params = params
     class cevec:
-        pass
+        def __init__(self, params = {}):
+            self.params = params
 
-# input
-def load(*a):
+# load through cgpt backend (NerscIO, openQCD, cevec, ...)
+def load_cgpt(*a):
     result=[]
     r,metadata=cgpt.load(*a, gpt.default.is_verbose("io"))
     for gr in r:
@@ -44,15 +52,23 @@ def load(*a):
         result=result[0]
     return result
 
+# input
+def load(*a):
+
+    try:
+        return gpt_io.load(*a)
+    except NotImplementedError:
+        pass
+
+    return load_cgpt(*a)
 
 # output
-def save(filename,objs,fmt = format.gpt):
+def save(filename,objs,fmt = format.gpt()):
 
-    if fmt == format.gpt:
-        return gpt_io.save(filename, objs)
+    if type(fmt) == format.gpt:
+        return gpt_io.save(filename, objs, fmt.params)
 
     return cgpt.save(filename, objs, fmt, gpt.default.is_verbose("io"))
-
 
 # helper
 def crc32(view):
