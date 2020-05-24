@@ -66,6 +66,11 @@ class grid:
     def describe(self): # creates a string without spaces that can be used to construct it again, this should only describe the grid geometry not the mpi/simd
         return (str(self.gdimensions)+";"+self.precision.__name__+";"+self.cb.__name__).replace(" ","")
 
+    def __str__(self):
+        ps = 'single' if self.precision==gpt.single else 'double'
+        cbs= 'full' if self.cb==gpt.full else 'redblack'
+        return 'Grid ' + str(self.gdimensions) + '; Precision = %s' % ps + '; CheckBoard = %s' % cbs
+
     def __del__(self):
         cgpt.delete_grid(self.obj)
 

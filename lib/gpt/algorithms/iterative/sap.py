@@ -47,8 +47,8 @@ class sap_blocks:
             raise
         
         # extended block coor system
-        exbs = [bs[0]*int(nblocks/2)] + bs[1:]
-        self.blk_grid = g.grid(exbs,...) 
+        exbs = [bs[0]*int(self.nblocks/2)] + bs[1:]
+        self.blk_grid = g.grid(exbs,g.double) 
         self.Ublk = [[g.mcolor(self.blk_grid)]*4]*2
         for mu in range(4):
             self.Ublk[0][mu][:]=0
@@ -66,21 +66,24 @@ class sap_blocks:
         idx=[-1,-1]
         for ib in range(self.nblocks):
             blk_coor = index2coor(ib,self.blk_dims) # coor of block in block-layout
-            blk_ofs = self.blk_size*self.blk_coor   # origin of block in full-grid
+            blk_ofs = self.blk_size*blk_coor   # origin of block in full-grid
             
             eo = int(np.sum(blk_coor) % 2) # even-odd block
             self.beo.append( eo )
             idx[eo]+=1
-            exofs = [bs[0]*idx[eo]] + bs[1:] # ofs in extended block-coord system
+            exofs = np.array([bs[0]*idx[eo]] + bs[1:]) # ofs in extended block-coord system
             
-            self.lcoor.append(cgpt.coordinate_from_cartesian_view(blk_ofs,blk_ofs+self.blk_size))
-            self.bcoor.append(cgpt.coordinate_from_cartesian_view(exbs, exbs+self.blk_size))
+            self.lcoor.append(self.get_coor(blk_ofs,blk_ofs+self.blk_size))
+            self.bcoor.append(self.get_coor(exbs, exbs+self.blk_size))
             
-            lcoor_obc=cgpt.coordinate_from_cartesian_view(blk_ofs,[blk_ofs[mu]+blk_size[mu]-1 for mu in range(Nd)])
-            bcoor_obc=cgpt.coordinate_from_cartesian_view(exofs,[exofs[mu]+blk_size[mu]-1 for mu in range(Nd)])
+            lcoor_obc=self.get_coor(blk_ofs,[blk_ofs[mu]+self.blk_size[mu]-1 for mu in range(Nd)])
+            bcoor_obc=self.get_coor(exofs,[exofs[mu]+self.blk_size[mu]-1 for mu in range(Nd)])
             
             for mu in range(4):
                 self.Ublk[eo][mu][bcoor_obc] = U[mu][lcoor_obc]
+    
+    def get_coor(self,top,bottom):
+        return cgpt.coordinates_form_cartesian_view([int(t) for t in top],[int(b) for b in bottom])
     
     def lat2blk(self, src, eo, imode):
         for ib in range(self.nblocks):
@@ -91,11 +94,11 @@ class sap_blocks:
 
 class sap:
     
-    def __init__(self, params, D):
+    def __init__(self, params, U):
         self.blk_size = params["blk_size"]
         self.nmr = params["nmr"]
         self.ncy = params["ncy"]
-        self.mres = gpt.algorithms.iterative.minres({
+        self.mres = g.algorithms.iterative.minres({
             "res" : 1e-6,
             "nmr" : self.nmr
         })
@@ -103,19 +106,19 @@ class sap:
         self.blk = sap_blocks(U,self.blk_size,3)
         self.D_blk = []
         
-        tmp_params = {}
-        for k in D.params:
-            assert(not k in [ "U_grid", "U_grid_rb", "F_grid", "F_grid_rb", "U" ])
-            tmp_params[k] = D.params[k]
+        #tmp_params = {}
+        #for k in D.params:
+        #    assert(not k in [ "U_grid", "U_grid_rb", "F_grid", "F_grid_rb", "U" ])
+        #    tmp_params[k] = D.params[k]
             
-        if "wilson" in D.name:
-            tmp_params["csw_r"],tmp_params["csw_t"] = 0.,0.
-            for eo in [0,1]:
-                self.D.append( g.qcd.fermion.wilson_exp_clover(self.blk.Ublk[eo], tmp_params) )
-                #cgpt.update_block_clover
-        else:
-            for eo in [0,1]:
-                if D.name=="mobius":
-                    self.D.append( g.qcd.fermion.mobius(self.blk.Ublk[eo], tmp_params) )
-                elif D.name=="zmobius":
-                    self.D.append( g.qcd.fermion.zmobius(self.blk.Ublk[eo], tmp_params) )
+        #if "wilson" in D.name:
+        #    tmp_params["csw_r"],tmp_params["csw_t"] = 0.,0.
+        #    for eo in [0,1]:
+        #        self.D.append( g.qcd.fermion.wilson_exp_clover(self.blk.Ublk[eo], tmp_params) )
+        #        #cgpt.update_block_clover
+        #else:
+        #    for eo in [0,1]:
+        #        if D.name=="mobius":
+        #            self.D.append( g.qcd.fermion.mobius(self.blk.Ublk[eo], tmp_params) )
+        #        elif D.name=="zmobius":
+        #            self.D.append( g.qcd.fermion.zmobius(self.blk.Ublk[eo], tmp_params) )

@@ -24,6 +24,7 @@
 #include "operators/unary.h"
 #include "operators/implementation.h"
 #include "operators/wilson_clover.h"
+#include "operators/wilson_exp_clover.h"
 #include "operators/zmobius.h"
 #include "operators/mobius.h"
 #include "operators/create.h"

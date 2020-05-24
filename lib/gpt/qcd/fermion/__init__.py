@@ -35,6 +35,13 @@ def wilson_clover(U, params):
         params["mass"] = (1./params["kappa"]/2. - 4.)
     return operator("wilson_clover", U, params)
 
+def wilson_eclover(U, params):
+    params = copy.deepcopy(params) # save current parameters
+    if "kappa" in params:
+        assert(not "mass" in params)
+        params["mass"] = (1./params["kappa"]/2. - 4.)
+    return operator("wilson_exp_clover", U, params)
+
 
 def zmobius(U, params):
     params = copy.deepcopy(params) # save current parameters
