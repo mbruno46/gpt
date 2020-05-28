@@ -1,7 +1,7 @@
 #
 #    GPT - Grid Python Toolkit
 #    Copyright (C) 2020  Christoph Lehner (christoph.lehner@ur.de, https://github.com/lehner/gpt)
-#                        Mattia Bruno
+#                  2020  Daniel Richtmann
 #
 #    This program is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -17,121 +17,130 @@
 #    with this program; if not, write to the Free Software Foundation, Inc.,
 #    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
-# Pseudo code and algorithm from 
-#    M. Luescher, Solution of the Dirac equation in lattice QCD 
-#                 using a domain decomposition method,
-#                 https://arxiv.org/pdf/hep-lat/0310048.pdf
-# 
-# input arguments:
-#   preconditioner M = approx. solution single prec
-#   operator D = Dirac operator. in double or single prec
-#   eta, psi = source, solution
-#
-# while not converged
-#   GCR CYCLE
-#   rho = eta
-#   for k=0...
-#     phi[k] = M rho[k]
-#     chi[k] = D phi[k]
-#     for l=0...k-1
-#       a[l,k] = (chi[l], chi[k])
-#       chi[k] = chi[k] - a[l,k]*chi[l]
-#     b[k] = |chi[k]|
-#     chi[k]=chi[k]/b[k]
-#     c[k] = (chi[k],rho[k])
-#     rho[k+1] = rho[k] - c[k]*chi[k]
-#
-# UPDATE SOLUTION
-# psi = sum_l alpha[l] * phi[l]
-# rho = eta - D psi
-#
-# b_l alpha_l + sum_{i=l+1}^k a[l,i]*alpha[i] = c[l] for l=k,k-1,...,0
-#
 import gpt as g
 import numpy as np
 from time import time
 
+
 class fgcr:
-    
     def __init__(self, params):
         self.params = params
-        #self.eps = params["eps"]
+        self.eps = params["eps"]
         self.maxiter = params["maxiter"]
-        self.nkv = params["nkv"]
-        self.res = params["res"]
-        self.gcr_prec = 1e-6
-   
-    def get_alpha(self,k, a, b, c):
-        alpha=[0.]*(k+1)
-        alpha[k]=c[k]/b[k]
-        for l in range(k-1,-1,-1):
-            alpha[l]= (c[l] - np.dot(a[l,l+1:k+1],alpha[l+1:k+1]))/b[l]
-        return alpha
-   
-    def __call__(self, M, D, eta, psi):
-        verbose=g.default.is_verbose("fgcr")
-        t0=time()
-        
-        a=np.zeros((self.nkv,self.nkv),dtype=np.complex)
-        b=[0.]*self.nkv #np.zeros((self.nkv,))
-        c=[0.]*self.nkv #np.zeros((self.nkv,))
-        
-        rho=g.vspincolor(M.F_grid)
-        rho=g.convert(rho, eta)
-        psi[:]=0
-        wsd=g.lattice(psi)
-        chi=[g.lattice(rho)]*self.nkv
-        phi=[g.lattice(rho)]*self.nkv
+        self.restartlen = params["restartlen"]
 
-        rn=np.sqrt(g.norm2(eta))
-        tol=rn*self.res
-        it=0
-        while True:
-            rn0=rn
-            
-            for k in range(self.nkv):
-                # gcr step
-                chi[k]@=M(rho,phi[k])
-                
-                for l in range(k):
-                    a[l,k] = g.innerProduct(chi[l],chi[k])
-                    chi[k] @= chi[k] - a[l,k]*chi[l];
-                
-                b[k]=np.sqrt(g.norm2(chi[k]))
-                chi[k] *= (1.0/b[k])
-                c[k] = g.innerProduct(chi[k],rho)
-                rho -= c[k]*chi[k]
-                # end gcr step
-                
-                it+=1
-                rn=np.sqrt(g.norm2(rho))
-                if (it>self.maxiter) or (rn<=tol):
-                    break
-                if (rn<rn0*self.gcr_prec):
-                    break
-            
-            # update psi
-            alpha=self.get_alpha(k,a,b,c)
-            rho[:]=0
-            for l in range(k,-1,-1):
-                rho += phi[l]*alpha[l]
-            g.convert(wsd, rho)
-            psi @= psi + wsd
-            D(psi,wsd)
-            wsd @= wsd-eta
-            rho = g.convert(rho, wsd)
-            
-            rn=np.sqrt(g.norm2(rho))
-            if verbose:
-                g.message("fgcr: %d, |rho| = %g, |psi| = %g" % (it,rn,np.sqrt(g.norm2(psi))))
-            if (rn<=tol):
-                if verbose:
-                    t1=time()
-                    g.message("fgcr converged in %g sec " % (t1-t0))
-                break
+    def __call__(self, mat, src, psi, prec=None):
+        # verbosity
+        verbose = g.default.is_verbose("fgcr")
+        checkres = True  # for now
+
+        # total time
+        tt0 = time()
+
+        # parameters
+        rlen = self.restartlen
+
+        # tensors
+        dtype_r, dtype_c = np.float64, np.complex128
+        alpha = np.empty((rlen), dtype_c)
+        beta = np.empty((rlen, rlen), dtype_c)
+        gamma = np.empty((rlen), dtype_r)
+        delta = np.empty((rlen), dtype_c)
+
+        # fields
+        r, mmr, mmpsi = g.copy(src), g.copy(src), g.copy(src)
+        p = [g.lattice(src) for i in range(rlen)]
+        mmp = [g.lattice(src) for i in range(rlen)]
+
+        # residual target
+        ssq = g.norm2(src)
+        rsq = self.eps**2. * ssq
+
+        # initial values
+        r2 = self.restart(mat, psi, mmpsi, src, r)
+
+        for k in range(self.maxiter):
+            # iteration within current krylov space
+            i = k % rlen
+
+            # iteration criteria
+            reached_maxiter = k+1 == self.maxiter
+            need_restart = i+1 == rlen
+
+            t0 = time()
+            if not prec is None:
+                prec(r, p[i])
             else:
-                if (it>self.maxiter):
+                p[i] @= r
+            t1 = time()
+
+            t2 = time()
+            mat(p[i], mmp[i])
+            t3 = time()
+
+            t4 = time()
+            g.orthogonalize(mmp[i], mmp[0:i], beta[:, i])
+            t5 = time()
+
+            t6 = time()
+            ip, mmp2 = g.innerProductNorm2(mmp[i], r)
+            gamma[i] = mmp2**0.5
+
+            if gamma[i] == 0.:
+                g.message("fgcr breakdown, gamma[%d] = 0" % (i))
+                break
+
+            mmp[i] /= gamma[i]
+            alpha[i] = ip / gamma[i]
+            r2 = g.axpy_norm2(r, -alpha[i], mmp[i], r)
+            t7 = time()
+
+            if verbose:
+                g.message(
+                    "Timing[s]: Prec = %g, Matrix = %g, Orthog = %g, Rest = %g"
+                    % (t1 - t0, t3 - t2, t5 - t4, t7 - t6))
+                g.message("res^2[ %d, %d ] = %g" % (k, i, r2))
+
+            if r2 <= rsq or need_restart or reached_maxiter:
+                self.update_psi(psi, alpha, beta, gamma, delta, p, i)
+
+                if r2 <= rsq:
                     if verbose:
-                        t1=time()
-                        g.message("fgcr not converged in %g sec " % (t1-t0))
+                        tt1 = time()
+                        g.message("Converged in %g s" % (tt1 - tt0))
+                        if checkres:
+                            res = self.calc_res(mat, psi, mmpsi, src, r) / ssq
+                            g.message(
+                                "Computed res = %g, true res = %g, target = %g"
+                                % (r2**0.5, res**0.5, self.eps))
                     break
+
+                if reached_maxiter:
+                    if verbose:
+                        tt1 = time()
+                        g.message("Did NOT converge in %g s" % (tt1 - tt0))
+                        if checkres:
+                            res = self.calc_res(mat, psi, mmpsi, src, r) / ssq
+                            g.message(
+                                "Computed res = %g, true res = %g, target = %g"
+                                % (r2**0.5, res**0.5, self.eps))
+
+                if need_restart:
+                    r2 = self.restart(mat, psi, mmpsi, src, r)
+                    if verbose:
+                        g.message("Performed restart")
+
+    def update_psi(self, psi, alpha, beta, gamma, delta, p, i):
+        # backward substitution
+        for j in reversed(range(i + 1)):
+            delta[j] = (alpha[j] - np.dot(beta[j, j+1:i+1], delta[j+1:i+1])) / gamma[j]
+
+        for j in range(i + 1):
+            psi += delta[j] * p[j]
+
+    def restart(self, mat, psi, mmpsi, src, r):
+        return self.calc_res(mat, psi, mmpsi, src, r)
+
+    def calc_res(self, mat, psi, mmpsi, src, r):
+        mat(psi, mmpsi)
+        return g.axpy_norm2(r, -1., mmpsi, src)

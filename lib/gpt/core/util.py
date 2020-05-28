@@ -24,13 +24,11 @@ def isnum(x):
 
 # tensor
 def value_to_tensor(val, otype):
-    if type(val) == complex:
-        return val
+    if otype == gpt.ot_complex:
+        return complex(val)
     return gpt.tensor(val, otype)
 
 def tensor_to_value(value):
     if type(value) == gpt.tensor:
         value = value.array
     return value
-
-

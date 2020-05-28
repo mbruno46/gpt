@@ -22,22 +22,15 @@ import gpt.default
 import gpt.create
 import gpt.algorithms
 import gpt.qcd
+import socket
 import cgpt, sys
 
 # initialize cgpt when gpt is loaded
 cgpt.init(sys.argv)
 
+# save my hostname
+hostname=socket.gethostname()
+
 # synonyms
 eval=expr_eval
 
-# global rank
-def rank():
-    return cgpt.global_rank()
-
-# broadcast
-def broadcast(root,data):
-    return cgpt.broadcast(root,data)
-
-# barrier
-def barrier():
-    return cgpt.barrier()

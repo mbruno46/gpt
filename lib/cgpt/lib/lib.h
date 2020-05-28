@@ -31,7 +31,10 @@
 
 using namespace Grid;
 
+#include "pvector.h"
+#include "time.h"
 #include "exception.h"
+#include "cached.h"
 #include "convert.h"
 #include "checksums.h"
 #include "parameters.h"
@@ -43,3 +46,4 @@ using namespace Grid;
 #include "precision.h"
 #include "util.h"
 #include "expression.h"
+#include "block.h"

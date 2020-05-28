@@ -16,16 +16,5 @@
     with this program; if not, write to the Free Software Foundation, Inc.,
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
-static uint32_t cgpt_crc32(unsigned char* data, int64_t len) {
-  // crc32 of zlib was incorrect for very large sizes, so do it block-wise
-  uint32_t crc = 0x0;
-  off_t blk = 0;
-  off_t step = 1024*1024*1024;
-  while (len > step) {
-    crc = crc32(crc,&data[blk],step);
-    blk += step;
-    len -= step;
-  }
-  
-  return crc32(crc,&data[blk],len);
-}
+#include "checksums/crc32.h"
+#include "checksums/sha256.h"

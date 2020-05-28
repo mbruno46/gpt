@@ -11,13 +11,13 @@ import random
 import cgpt
 
 # load configuration
-U = g.load("/hpcgpfs01/work/clehner/configs/16I_0p01_0p04/ckpoint_lat.IEEE64BIG.1100")
+U = g.load("/hpcgpfs01/work/clehner/configs/32IDfine/ckpoint_lat.200")
 
 # Show metadata of field
 g.message("Metadata", U[0].metadata)
 
 # to single precision
-U = g.convert(U, g.single)
+#U = g.convert(U, g.single)
 
 # save in default gpt format
 g.save("out",{ 
@@ -32,7 +32,7 @@ g.save("out2",{
     "np" : g.coordinates(U[0].grid), # write numpy array from root node
     "U" : U # write list of lattices
 },g.format.gpt({
-    "mpi" : [ 2, 2, 1, 1 ] # save fields in 2 x 2 x 1 x 1 processor grid instead of --mpi grid
+    "mpi" : [ 2, 2, 2, 1 ] # save fields in 2 x 2 x 1 x 1 processor grid instead of --mpi grid
 }))
 
 #
@@ -79,7 +79,7 @@ Uf0 = g.convert(U[0], g.single)
 g.message(g.norm2(Uf0))
 
 del Uf0
-g.meminfo()
+g.mem_report()
 
 # Slice
 x=g.sum(Uf[0])
@@ -97,7 +97,7 @@ gre=g.complex(gride)
 g.pick_cb(g.even,gre,gr)
 gre[2,0,0,0]=4
 g.set_cb(gr,gre)
-g.meminfo()
+g.mem_report()
 
 
 print(gre)

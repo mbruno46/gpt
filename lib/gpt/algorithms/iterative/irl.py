@@ -24,7 +24,6 @@
 import gpt as g
 import numpy as np
 import sys
-from time import time
 
 # Implicitly Restarted Lanczos
 class irl:
@@ -67,6 +66,10 @@ class irl:
         v=g.lattice(src)
         evec=[ g.lattice(src) for i in range(Nm) ]
 
+        # advice memory storage
+        if "advise" in self.params:
+            g.advise(evec,self.params["advise"])
+
         # scalars
         k1=1
         k2=Nk
@@ -94,10 +97,10 @@ class irl:
                 lme2[k] = lme[k+k1-1]
 
             # diagonalize
-            t0=time()
+            t0=g.time()
             Qt=np.identity(Nm,dtype)
             self.diagonalize(ev2,lme2,Nm,Qt)
-            t1=time()
+            t1=g.time()
 
             if verbose:
                 g.message("Diagonalization took %g s" % (t1-t0))
@@ -108,18 +111,18 @@ class irl:
 
             # implicitly shifted QR transformations
             Qt=np.identity(Nm,dtype)
-            t0=time()
+            t0=g.time()
             for ip in range(k2,Nm):
                 g.qr_decomp(ev,lme,Nm,Nm,Qt,ev2[ip],k1,Nm)
-            t1=time()
+            t1=g.time()
 
             if verbose:
                 g.message("QR took %g s" % (t1-t0))
 
             # rotate
-            t0=time()
+            t0=g.time()
             g.rotate(evec,Qt,k1-1,k2+1,0,Nm)
-            t1=time()
+            t1=g.time()
 
             if verbose:
                 g.message("Basis rotation took %g s" % (t1-t0))
@@ -146,9 +149,9 @@ class irl:
                     lme2[k] = lme[k]
                 Qt = np.identity(Nm,dtype)
 
-                t0=time()
+                t0=g.time()
                 self.diagonalize(ev2,lme2,Nk,Qt)
-                t1=time()
+                t1=g.time()
 
                 if verbose:
                     g.message("Diagonalization took %g s" % (t1-t0))
@@ -180,20 +183,17 @@ class irl:
                 if allconv:
                     if verbose:
                         g.message("Converged in %d iterations" % it)
+                        break
 
-                    t0=time()
-                    g.rotate(evec,Qt,0,Nstop,0,Nk)
-                    t1=time()
+        t0=g.time()
+        g.rotate(evec,Qt,0,Nstop,0,Nk)
+        t1=g.time()
 
-                    if verbose:
-                        g.message("Final basis rotation took %g s" % (t1-t0))
-
-                    return (evec[0:Nstop],ev2_copy[0:Nstop])
-                    
         if verbose:
-            g.message("Did not converge")
-        return (None,None)
+            g.message("Final basis rotation took %g s" % (t1-t0))
 
+        return (evec[0:Nstop],ev2_copy[0:Nstop])
+        
     def diagonalize(self,lmd,lme,Nk,Qt):
         TriDiag = np.zeros((Nk,Nk),dtype=Qt.dtype)
         for i in range(Nk):
@@ -221,11 +221,19 @@ class irl:
         results=[w,alph,beta]
         if ckpt.load(results):
             w,alph,beta=results # use checkpoint
+
+            if verbose:
+                g.message("%-65s %-45s" % ("alpha[ %d ] = %s" % (k,alph),
+                                           "beta[ %d ] = %s" % (k,beta)))
+
         else:
+            # memreport for summit for now
+            g.mem_report(details = False)
+
             # compute
-            t0=time()
+            t0=g.time()
             mat(evec_k,w)
-            t1=time()
+            t1=g.time()
 
             # allow to restrict maximal number of applications within run
             self.napply += 1
@@ -246,10 +254,10 @@ class irl:
             beta=g.norm2(w)**0.5
             w /= beta
 
-            t2=time()
+            t2=g.time()
             if k>0:
                 g.orthogonalize(w,evec[0:k])
-            t3=time()
+            t3=g.time()
 
             ckpt.save([w,alph,beta])
 

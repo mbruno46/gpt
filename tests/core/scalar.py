@@ -33,9 +33,12 @@ psi[:]=0
 cg=g.algorithms.iterative.cg({"eps":1e-8,"maxiter":1000})
 cg(lambda i,o: A(o,i,m0),src,psi)
 
-g.meminfo()
+g.mem_report()
 
 # Test CG
 tmp=g.lattice(psi)
 A(tmp,psi,m0)
-g.message("True residuum:", g.norm2( tmp - src ))
+eps2=g.norm2( tmp - src )
+g.message("True residuum:", eps2)
+assert(eps2 < 1e-25)
+
