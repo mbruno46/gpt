@@ -17,16 +17,19 @@
 #    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 import gpt, cgpt
+from gpt.params import params_convention
 
 # format
 class format:
 
     class gpt:
-        def __init__(self, params = {}):
+        @params_convention()
+        def __init__(self, params):
             self.params = params
 
     class cevec:
-        def __init__(self, params = {}):
+        @params_convention()
+        def __init__(self, params):
             self.params = params
 
 # output

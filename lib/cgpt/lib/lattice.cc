@@ -109,6 +109,16 @@ EXPORT(lattice_memory_view,{
     return l->memory_view();
   });
 
+EXPORT(lattice_memory_view_coordinates,{
+    void* p;
+    if (!PyArg_ParseTuple(args, "l", &p)) {
+      return NULL;
+    }
+    
+    cgpt_Lattice_base* l = (cgpt_Lattice_base*)p;
+    return l->memory_view_coordinates();
+  });
+
 EXPORT(lattice_export,{
     PyObject* pos, * vlat;
     if (!PyArg_ParseTuple(args, "OO", &vlat, &pos)) {
@@ -120,8 +130,8 @@ EXPORT(lattice_export,{
     std::vector<long> shape;
     GridBase* grid;
     int cb,dt;
-    cgpt_prepare_vlattice_importexport(vlat,data,shape,grid,cb,dt);
 
+    cgpt_prepare_vlattice_importexport(vlat,data,shape,grid,cb,dt);
     return (PyObject*)cgpt_importexport(grid,cb,dt,data,shape,(PyArrayObject*)pos,0);
   });
 
@@ -136,6 +146,7 @@ EXPORT(lattice_import,{
     std::vector<long> shape;
     GridBase* grid;
     int cb,dt;
+
     cgpt_prepare_vlattice_importexport(vlat,data,shape,grid,cb,dt);
     
     cgpt_importexport(grid,cb,dt,data,shape,(PyArrayObject*)pos,d);

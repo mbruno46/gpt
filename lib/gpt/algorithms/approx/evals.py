@@ -18,13 +18,16 @@
 #
 import gpt as g
 
-def evals(matrix, evec, check_eps2 = None, skip = 1):
+@g.params_convention(check_eps2 = None, skip = 1)
+def evals(matrix, evec, params):
+    check_eps2=params["check_eps2"]
+    skip=params["skip"]
     assert(len(evec) > 0)
     tmp=g.lattice(evec[0])
     ev=[]
     for i in range(0,len(evec),skip):
         v=evec[i]
-        matrix(v,tmp)
+        matrix(tmp,v)
         # M |v> = l |v> -> <v|M|v> / <v|v>
         l=g.innerProduct(v,tmp).real / g.norm2(v)
         ev.append(l)

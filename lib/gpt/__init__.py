@@ -17,7 +17,7 @@
 #    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 from gpt.core import *
-from gpt.params import params
+from gpt.params import params, params_convention
 import gpt.default
 import gpt.create
 import gpt.algorithms

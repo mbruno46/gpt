@@ -23,7 +23,9 @@ from gpt.algorithms.iterative.fgmres import fgmres
 from gpt.algorithms.iterative.irl import irl
 from gpt.algorithms.iterative.mr import mr
 from gpt.algorithms.iterative.power_iteration import power_iteration
+
 from gpt.algorithms.iterative.fgcr import fgcr
 from gpt.algorithms.iterative.minres import minres
 from gpt.algorithms.iterative.sap import sap
 
+from gpt.algorithms.iterative.defect_correcting_inverter import defect_correcting_inverter

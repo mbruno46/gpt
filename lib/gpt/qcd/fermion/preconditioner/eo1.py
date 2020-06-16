@@ -38,7 +38,7 @@ import gpt, sys
 #
 # M^-1 = L (N^dag N)^-1 R + S
 #
-# R = N^dag EE^-1 ( 1   - EO OO^-1 )
+# R = N^dag EE^-1 ( 1   - EO OO^-1 )  ;  R^dag = ( 1   - EO OO^-1 )^dag EE^-1^dag N
 #
 #     ( 1         ) 
 # L = ( -OO^-1 OE )
@@ -46,52 +46,67 @@ import gpt, sys
 #     ( 0   0     )
 # S = ( 0   OO^-1 )
 #
+# A2A:
+#
+# M^-1 = L |n><n| R + S = v w^dag + S ;  -> v = L |n>, w = R^dag |n>
+#
 
 class eo1:
     def __init__(self, op):
         self.op = op
+        self.otype = op.otype
         self.F_grid_eo = op.F_grid_eo
         self.F_grid = op.F_grid
-        self.tmp = gpt.vspincolor(self.F_grid_eo)
-        self.tmp2 = gpt.vspincolor(self.F_grid_eo) # need for nested call in R
+        self.U_grid = op.U_grid
+        self.tmp = gpt.lattice(self.F_grid_eo,self.otype)
+        self.tmp2 = gpt.lattice(self.F_grid_eo,self.otype) # need for nested call in R
+        self.ImportPhysicalFermionSource = self.op.ImportPhysicalFermionSource
+        self.ExportPhysicalFermionSolution = self.op.ExportPhysicalFermionSolution
+        self.Dminus = self.op.Dminus
+        self.ExportPhysicalFermionSource = self.op.ExportPhysicalFermionSource
+        
+        def _N(oe, ie):
+            self.op.Meooe.mat(self.tmp2,ie)
+            self.op.Mooee.inv_mat(oe,self.tmp2)
+            self.op.Meooe.mat(self.tmp2,oe)
+            self.op.Mooee.inv_mat(oe,self.tmp2)
+            oe @= ie - oe
 
-    def ImportPhysicalFermionSource(self, src, dst):
-        self.op.ImportPhysicalFermionSource(src, dst)
+        def _NDag(oe, ie):
+            self.op.Mooee.adj_inv_mat(self.tmp2,ie)
+            self.op.Meooe.adj_mat(oe,self.tmp2)
+            self.op.Mooee.adj_inv_mat(self.tmp2,oe)
+            self.op.Meooe.adj_mat(oe,self.tmp2)
+            oe @= ie - oe
 
-    def ExportPhysicalFermionSolution(self, src, dst):
-        self.op.ExportPhysicalFermionSolution(src, dst)
+        def _NDagN(oe, ie):
+            _N(self.tmp,ie)
+            _NDag(oe,self.tmp)
 
-    def R(self, ie, io, oe):
-        self.op.MooeeInv(io,self.tmp)
-        self.op.Meooe(self.tmp,oe)
+        self.N = gpt.matrix_operator(mat = _N, adj_mat = _NDag, otype = op.otype, grid = self.F_grid_eo)
+        self.NDagN = gpt.matrix_operator(mat = _NDagN, adj_mat = _NDagN, otype = op.otype, grid = self.F_grid_eo)
+
+    def R(self, oe, ie, io):
+        self.op.Mooee.inv_mat(self.tmp,io)
+        self.op.Meooe.mat(oe,self.tmp)
         oe @= ie - oe
-        self.op.MooeeInv(oe,self.tmp)
-        self.NDag(self.tmp,oe)
+        self.op.Mooee.inv_mat(self.tmp,oe)
+        self.N.adj_mat(oe,self.tmp)
+        
+    def RDag(self, oe, oo, ie):
+        # R^dag = ( 1   - EO OO^-1 )^dag EE^-1^dag N
+        self.N.mat(oo,ie)
+        self.op.Mooee.adj_inv_mat(oe,oo)
+        self.op.Meooe.adj_mat(self.tmp,oe)
+        self.op.Mooee.adj_inv_mat(oo,self.tmp)
+        oo @= -oo
 
-    def L(self, ie, oe, oo):
+    def L(self, oe, oo, ie):
         oe @= ie
-        self.op.Meooe(ie,self.tmp)
-        self.op.MooeeInv(self.tmp,oo)
+        self.op.Meooe.mat(self.tmp,ie)
+        self.op.Mooee.inv_mat(oo,self.tmp)
         oo @= - oo
 
-    def S(self, ie, io, oe, oo):
-        self.op.MooeeInv(io,oo)
+    def S(self, oe, oo, ie, io):
+        self.op.Mooee.inv_mat(oo,io)
         oe[:]=0
-
-    def NDagN(self, ie, oe):
-        self.N(ie,self.tmp)
-        self.NDag(self.tmp,oe)
-
-    def N(self, ie, oe):
-        self.op.Meooe(ie,self.tmp2)
-        self.op.MooeeInv(self.tmp2,oe)
-        self.op.Meooe(oe,self.tmp2)
-        self.op.MooeeInv(self.tmp2,oe)
-        oe @= ie - oe
-
-    def NDag(self, ie, oe):
-        self.op.MooeeInvDag(ie,self.tmp2)
-        self.op.MeooeDag(self.tmp2,oe)
-        self.op.MooeeInvDag(oe,self.tmp2)
-        self.op.MeooeDag(self.tmp2,oe)
-        oe @= ie - oe

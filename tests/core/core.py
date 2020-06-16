@@ -2,42 +2,97 @@
 #
 # Authors: Christoph Lehner 2020
 #
-# Desc.: Illustrate core concepts and features
+# Desc.: Test small core features that are not sufficiently complex
+#        to require a separate test file.  These tests need to be fast.
 #
 import gpt as g
 import numpy as np
-import sys
+import sys, cgpt
 
 # grid
-grid=g.grid([2,2,2,2], g.single)
+L=[16,16,16,32]
+grid_dp=g.grid(L, g.double)
+grid_sp=g.grid(L, g.single)
 
-# test different lattice types
-vc=g.vcolor(grid)
-g.message(vc)
+# test fields
+l_dp=g.random("test").cnormal(g.vcolor(grid_dp))
+l_sp=g.convert( l_dp, g.single )
 
-vz30=g.vcomplex(grid,30)
-g.message(vz30)
+################################################################################
+# Test mview
+################################################################################
+c=g.coordinates(l_dp)
+x=l_dp[c]
+mv=g.mview(x)
+assert(mv.itemsize == 1 and mv.shape[0] == len(mv))
+assert(sys.getrefcount(x) == 3)
+del mv
+assert(sys.getrefcount(x) == 2)
 
-vz30c=g.lattice(grid,vz30.describe())
-vz30c[:]=g.vcomplex([ 1 ] * 15 + [0.5] * 15,30)
-g.message(vz30c)
 
-vz30b=g.lattice(vz30c)
-vz30b[:]=g.vcomplex([ 0.5 ] * 5 + [ 1.0 ] * 20 + [0.2] * 5,30)
+################################################################################
+# Test exp_ixp
+################################################################################
+# multiply momentum phase in l
+p=2.0*np.pi*np.array([ 1, 2, 3, 4 ]) / L
+exp_ixp=g.exp_ixp(p)
 
-g.message(g.eval(vz30c + 0.3* vz30b))
+# Test one component
+xc=(2,3,1,5)
+x=np.array(list(xc))
+ref=np.exp(1j*np.dot(p,x)) * l_dp[xc]
 
-# perform a barrier
-grid.barrier()
+val=g.eval( exp_ixp*l_dp )[xc]
+eps=g.norm2(ref-val)
+g.message("Reference value test: ",eps)
+assert(eps<1e-25)
 
-# and a global sum over a number and a single-precision numpy array
-nodes=grid.globalsum(1)
+# single/double
+eps=g.norm2( exp_ixp*l_sp - g.convert( exp_ixp*l_dp , g.single ) ) / g.norm2(l_sp)
+g.message("Momentum phase test single/double: ",eps)
+assert(eps < 1e-10)
 
-a=np.array([ [ 1.0, 2.0, 3.0 ], [ 4,5,6j] ],dtype=np.csingle)
+eps=g.norm2(g.inv(exp_ixp) * exp_ixp * l_dp - l_dp) / g.norm2(l_dp)
+g.message("Momentum inverse test: ",eps)
+assert(eps < 1e-20)
 
-grid.globalsum(a)
+eps=g.norm2(g.adj(exp_ixp)*exp_ixp*l_dp - l_dp) / g.norm2(l_dp)
+g.message("Momentum adj test: ",eps)
+assert(eps < 1e-20)
 
-g.message(nodes,a)
+eps=g.norm2(g.adj(exp_ixp*exp_ixp)*exp_ixp*exp_ixp*l_dp - l_dp) / g.norm2(l_dp)
+g.message("Momentum adj test (2): ",eps)
+assert(eps < 1e-20)
+
+
+################################################################################
+# Test vcomplex
+################################################################################
+va=g.vcomplex(grid_sp,30)
+vb=g.lattice(va)
+va[:]=g.vcomplex([ 1 ] * 15 + [0.5] * 15,30)
+vb[:]=g.vcomplex([ 0.5 ] * 5 + [ 1.0 ] * 20 + [0.2] * 5,30)
+va @= 0.5 * va + 0.5 * vb
+assert(abs(va[0,0,0,0][3] - 0.75) < 1e-6)
+assert(abs(va[0,0,0,0][18] - 0.75) < 1e-6)
+assert(abs(va[0,0,0,0][28] - 0.35) < 1e-6)
+
+################################################################################
+# MPI
+################################################################################
+grid_sp.barrier()
+nodes=grid_sp.globalsum(1)
+assert(nodes == grid_sp.Nprocessors)
+a=np.array([ [ 1.0, 2.0, 3.0 ], [ 4,5,6j] ],dtype=np.complex64)
+b=np.copy(a)
+grid_sp.globalsum(a)
+eps=a / nodes - b
+assert(np.linalg.norm(eps) < 1e-7)
+
+
+
+
+sys.exit(0)
 
 # create a complex lattice on the grid
 src=g.complex(grid)

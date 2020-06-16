@@ -31,6 +31,10 @@
 
 using namespace Grid;
 
+#if defined(GRID_SYCL) || defined(GRID_CUDA) || defined(GRID_HIP)
+#define GRID_HAS_ACCELERATOR
+#endif
+
 #include "pvector.h"
 #include "time.h"
 #include "exception.h"
@@ -42,6 +46,7 @@ using namespace Grid;
 #include "distribute.h"
 #include "peekpoke.h"
 #include "transform.h"
+#include "grid.h"
 #include "lattice.h"
 #include "precision.h"
 #include "util.h"

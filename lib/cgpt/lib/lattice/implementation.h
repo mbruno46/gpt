@@ -52,6 +52,10 @@ public:
     return ::axpy_norm(l,(Coeff_t)a,compatible<T>(x)->l,compatible<T>(y)->l);
   }
 
+  virtual void axpy(ComplexD a, cgpt_Lattice_base* x, cgpt_Lattice_base* y) {
+    return ::axpy(l,(Coeff_t)a,compatible<T>(x)->l,compatible<T>(y)->l);
+  }
+
   virtual RealD norm2() {
     return ::norm2(l);
   }
@@ -163,8 +167,24 @@ public:
   }
 
   virtual PyObject* memory_view() {
+#ifdef _GRID_FUTURE_
+    auto v = l.View(CpuWrite);
+#else
     auto v = l.View();
-    return PyMemoryView_FromMemory((char*)&v[0],v.size()*sizeof(v[0]),PyBUF_WRITE);
+#endif
+    size_t sz = v.size() * sizeof(v[0]);
+    char* ptr = (char*)&v[0];
+#ifdef _GRID_FUTURE_
+    v.ViewClose();
+#endif
+    // this marks Cpu as dirty, so data will be copied to Gpu; this is not fully safe
+    // and the ViewClose should be moved to the destructor of the PyMemoryView object.
+    // Do this in the same way as currently done in mview() in the future.
+    return PyMemoryView_FromMemory(ptr,sz,PyBUF_WRITE);
+  }
+
+  virtual PyObject* memory_view_coordinates() {
+    return cgpt_memory_view_coordinates(l.Grid(),l.Checkerboard());
   }
 
   virtual void describe_data_layout(long & Nsimd, long & word, long & simd_word, std::vector<long> & ishape) {
@@ -174,6 +194,8 @@ public:
     simd_word = sizeof(Coeff_t);
     ishape.resize(0);
     cgpt_numpy_data_layout(sobj(),ishape);
+    if (ishape.size() == 0) // treat complex numbers as 1d array with one element
+      ishape.push_back(1);
   }
   
   virtual int get_numpy_dtype() {
@@ -197,22 +219,21 @@ public:
   }
 
   virtual PyObject* advise(std::string type) {
-    int advise;
     if (type == "infrequent_use") {
-      advise = AdviseInfrequentUse;
+#ifdef _GRID_FUTURE_
+      l.Advise() = AdviseInfrequentUse;
+#endif
     } else {
       ERR("Unknown advise %s",type.c_str());
-    }
-    l.Advise(advise);
+    }    
     return PyLong_FromLong(0);
   }
 
   virtual PyObject* prefetch(std::string type) {
-    int advise;
     if (type == "accelerator") {
-      l.AcceleratorPrefetch();
+      //l.AcceleratorPrefetch();
     } else if (type == "host") {
-      l.HostPrefetch();
+      //l.HostPrefetch();
     } else {
       ERR("Unknown prefetch %s",type.c_str());
     }

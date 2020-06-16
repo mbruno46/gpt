@@ -16,9 +16,8 @@
 #    with this program; if not, write to the Free Software Foundation, Inc.,
 #    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
-import cgpt
-import gpt
-import numpy
+import cgpt, gpt, numpy
+from gpt.core.expr import factor
 
 mem_book = {
 }
@@ -26,7 +25,8 @@ mem_book = {
 def get_mem_book():
     return mem_book
 
-class lattice:
+
+class lattice(factor):
     __array_priority__=1000000
     def __init__(self, first, second = None, third = None):
         self.metadata={}
@@ -80,7 +80,7 @@ class lattice:
 
     def checkerboard(self, val = None):
         if val is None:
-            if self.grid.cb != gpt.redblack:
+            if self.grid.cb.n == 1:
                 return gpt.none
 
             cb=cgpt.lattice_get_checkerboard(self.v_obj[0]) # all have same cb, use 0
@@ -92,7 +92,7 @@ class lattice:
                 assert(0)
         else:
             if val != gpt.none:
-                assert(self.grid.cb == gpt.redblack)
+                assert(self.grid.cb.n != 1)
                 for o in self.v_obj:
                     cgpt.lattice_change_checkerboard(o,val.tag)
 
@@ -100,11 +100,22 @@ class lattice:
         # creates a string without spaces that can be used to construct it again (may be combined with self.grid.describe())
         return self.otype.__name__ + ";" + self.checkerboard().__name__
 
-    def __setitem__(self, key, value):
-        if type(key) == slice:
-            if key == slice(None,None,None):
-                key = ()
+    def map_key(self, key):
+        # slices without specified start/stop corresponds to memory view limitation for this rank
+        if type(key) == slice and key == slice(None,None,None):
+            return ()
+        if type(key) == tuple and not all([ type(k) == int for k in key ]):
+            key = tuple([ k if type(k) == slice else slice(k,k+1) for k in key ])
+            grid=self.grid
+            assert(all([ k.step is None for k in key ]))
+            assert(len(key) == grid.nd)
+            top=[ grid.fdimensions[i] // grid.mpi[i] * grid.processor_coor[i] if k.start is None else k.start for i,k in enumerate(key) ]
+            bottom=[ grid.fdimensions[i] // grid.mpi[i] * (1+grid.processor_coor[i]) if k.stop is None else k.stop for i,k in enumerate(key) ]
+            key=cgpt.coordinates_from_cartesian_view(top,bottom,self.grid.cb.cb_mask,self.checkerboard().tag,"grid")
+        return key
 
+    def __setitem__(self, key, value):
+        key = self.map_key(key)
         if type(key) == tuple:
             if len(self.v_obj) == 1:
                 cgpt.lattice_set_val(self.v_obj[0], key, gpt.util.tensor_to_value(value))
@@ -120,6 +131,7 @@ class lattice:
             assert(0)
 
     def __getitem__(self, key):
+        key = self.map_key(key)
         if type(key) == tuple:
             if len(self.v_obj) == 1:
                 return gpt.util.value_to_tensor(cgpt.lattice_get_val(self.v_obj[0], key), self.otype)
@@ -136,6 +148,10 @@ class lattice:
     def mview(self):
         return [ cgpt.lattice_memory_view(o) for o in self.v_obj ]
 
+    def mview_coordinates(self):
+        # coordinates are identical for all x \in v_obj
+        return cgpt.lattice_memory_view_coordinates(self.v_obj[0])
+
     def __repr__(self):
         return "lattice(%s,%s)" % (self.otype.__name__,self.grid.precision.__name__)
 
@@ -148,25 +164,6 @@ class lattice:
                 s+="-------- %d to %d --------\n" % (self.otype.v_n0[i],self.otype.v_n1[i])
                 s+=cgpt.lattice_to_str(x)
             return s
-
-    def __rmul__(self, l):
-        return gpt.expr(l) * gpt.expr(self)
-
-    def __mul__(self, l):
-        return gpt.expr(self) * gpt.expr(l)
-
-    def __truediv__(self, l):
-        assert(gpt.util.isnum(l))
-        return gpt.expr(self) * (1.0/l)
-
-    def __add__(self, l):
-        return gpt.expr(self) + gpt.expr(l)
-
-    def __sub__(self, l):
-        return gpt.expr(self) - gpt.expr(l)
-
-    def __neg__(self):
-        return gpt.expr(self) * (-1.0)
 
     def __iadd__(self, expr):
         gpt.eval(self,expr,ac=True)

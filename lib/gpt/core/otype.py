@@ -62,7 +62,7 @@ class ot_base:
 
 class ot_complex(ot_base):
     nfloats=2
-    shape=()
+    shape=(1,)
     spintrace=(None,None,None) # do nothing
     colortrace=(None,None,None)
     v_otype=[ "ot_complex" ]
@@ -117,6 +117,20 @@ class ot_vspincolor(ot_base):
     nfloats=2*3*4
     shape=(4,3)
     v_otype=[ "ot_vspincolor" ]
+
+    def distribute(mat,dst,src,zero_lhs):
+        if src.otype.__name__ == "ot_mspincolor":
+            grid=src.grid
+            dst_sc,src_sc=gpt.vspincolor(grid),gpt.vspincolor(grid)
+            for s in range(4):
+                for c in range(3):
+                    gpt.qcd.prop_to_ferm(src_sc,src,s,c)
+                    if zero_lhs:
+                        dst_sc[:]=0
+                    mat(dst_sc,src_sc)
+                    gpt.qcd.ferm_to_prop(dst,dst_sc,s,c)
+        else:
+            assert(0)
 
 def vspincolor(grid):
     return gpt_object(grid, ot_vspincolor)
