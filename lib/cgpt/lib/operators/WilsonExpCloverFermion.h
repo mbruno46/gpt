@@ -119,7 +119,7 @@ public:
 
   // *NOT* EO
   //virtual RealD M(const FermionField &in, FermionField &out);
-  RealD M(const FermionField &in, FermionField &out)
+  virtual void M(const FermionField &in, FermionField &out)
   {
      FermionField temp(out.Grid());
 
@@ -134,7 +134,7 @@ public:
      return norm2(out);
   }
 
-  RealD Mdag(const FermionField &in, FermionField &out)
+  virtual void Mdag(const FermionField &in, FermionField &out)
   {
      FermionField temp(out.Grid());
 
