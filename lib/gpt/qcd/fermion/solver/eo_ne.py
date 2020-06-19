@@ -27,7 +27,7 @@ def inv_eo_ne(matrix, inverter):
     io=gpt.lattice(F_grid_eo,otype)
     t1=gpt.lattice(F_grid_eo,otype)
     t2=gpt.lattice(F_grid_eo,otype)
-    
+
     def inv(dst_sc, src_sc):
 
         oe=gpt.lattice(F_grid_eo,otype)
@@ -41,7 +41,7 @@ def inv_eo_ne(matrix, inverter):
         matrix.R(t1, ie, io)
 
         t2[:]=0
-        t2.checkerboard(gpt.even)
+        t2.checkerboard(t1.checkerboard())
 
         inverter(matrix.NDagN)(t2,t1)
 
@@ -59,7 +59,8 @@ def inv_eo_ne(matrix, inverter):
     m=gpt.matrix_operator(mat = inv, inv_mat = matrix.op.M,
                           adj_inv_mat = matrix.op.M.adj(),
                           adj_mat = None, # implement adj_mat when needed
-                          otype = otype, zero = (True,False), grid = matrix.F_grid)
+                          otype = otype, zero = (True,False), grid = matrix.F_grid,
+                          cb = None)
     
     m.ImportPhysicalFermionSource = matrix.ImportPhysicalFermionSource
     m.ExportPhysicalFermionSolution = matrix.ExportPhysicalFermionSolution
@@ -79,6 +80,7 @@ class a2a_eo_ne:
 
         self.oe=gpt.lattice(self.F_grid_eo,self.otype)
         self.oo=gpt.lattice(self.F_grid_eo,self.otype)
+        self.U_tmp=gpt.lattice(self.U_grid,self.otype)
         self.F_tmp=gpt.lattice(self.F_grid,self.otype)
         self.F_tmp_2=gpt.lattice(self.F_grid,self.otype)
 
@@ -101,11 +103,19 @@ class a2a_eo_ne:
             self.matrix.Dminus.adj_mat(self.F_tmp_2,self.F_tmp)
             self.matrix.ExportPhysicalFermionSource(dst,self.F_tmp_2)
 
+        def _G5w(dst, evec):
+            _w(self.U_tmp, evec)
+            dst @= gpt.gamma[5] * self.U_tmp
+
         self.v=gpt.matrix_operator(mat = _v,
                                    otype = self.otype, zero = (False,False), 
                                    grid = (self.U_grid,self.F_grid_eo))
 
         self.w=gpt.matrix_operator(mat = _w,
+                                   otype = self.otype, zero = (False,False), 
+                                   grid = (self.U_grid,self.F_grid_eo))
+
+        self.G5w=gpt.matrix_operator(mat = _G5w,
                                    otype = self.otype, zero = (False,False), 
                                    grid = (self.U_grid,self.F_grid_eo))
         
