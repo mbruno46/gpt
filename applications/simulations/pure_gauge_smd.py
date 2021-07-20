@@ -49,7 +49,12 @@ mdint = sympl.OMF4(1, ip, iq)
 g.message(f"Integration scheme:\n{mdint}")
 
 # metropolis
-metro = g.algorithms.markov.metropolis(rng)
+def on_reject(fields, previous_fields):
+    for i in range(len(fields)):
+        fields[i] @= (1 if i < 4 else -1) * previous_fields[i]
+
+
+metro = g.algorithms.markov.metropolis(rng, on_reject)
 
 g.message("SMD smd")
 eps = 0.2
@@ -67,7 +72,7 @@ def momentum_rotation(mom):
 
 
 def smd(eps, mom):
-    accrej = metro(U + mom, weights=[1, 1, 1, 1, -1, -1, -1, -1])
+    accrej = metro(U + mom)
     momentum_rotation(mom)
     h0 = hamiltonian()
     mdint(eps)

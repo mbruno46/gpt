@@ -25,14 +25,17 @@ def boltzman_factor(h1, h0):
     return numpy.exp(-h1 + h0)
 
 
+def on_reject_default(fields, previous_fields):
+    g.copy(fields, previous_fields)
+
+
 # Given the probability density P(f(x)), the metropolis algorithm:
 # - computes the initial probability P0 = P(f(x0))
 # - waits for a proposal for the new fields with w[x1 <- x0]
 # - computes the final probability P1 = P(f(x1))
 # - performs the accept/reject step, ie accepts with probability = min{1, P(f(x1))/P(f(x0))}
-# - in case of reject the fields are restored to their original value times some weights
-def metropolis(rng, probability_ratio=boltzman_factor):
-    def trial(fields, weights=None):
+def metropolis(rng, on_reject=on_reject_default, probability_ratio=boltzman_factor):
+    def trial(fields):
 
         # save state
         previous_state = g.copy(fields)
@@ -48,13 +51,7 @@ def metropolis(rng, probability_ratio=boltzman_factor):
             rr = grid.globalsum(rr if grid.processor == 0 else 0.0)
             if probability_ratio(f1, f0) >= rr:
                 return True
-            if weights is None:
-                g.copy(fields, previous_state)
-            else:
-                assert len(weights) == len(fields)
-                for f in fields:
-                    i = fields.index(f)
-                    f @= weights[i] * previous_state[i]
+            on_reject(fields, previous_state)
             return False
 
         return accept_reject
