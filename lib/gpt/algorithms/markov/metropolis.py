@@ -30,8 +30,9 @@ def boltzman_factor(h1, h0):
 # - waits for a proposal for the new fields with w[x1 <- x0]
 # - computes the final probability P1 = P(f(x1))
 # - performs the accept/reject step, ie accepts with probability = min{1, P(f(x1))/P(f(x0))}
+# - in case of reject the fields are restored to their original value times some weights
 def metropolis(rng, probability_ratio=boltzman_factor):
-    def trial(fields):
+    def trial(fields, weights=None):
 
         # save state
         previous_state = g.copy(fields)
@@ -47,7 +48,13 @@ def metropolis(rng, probability_ratio=boltzman_factor):
             rr = grid.globalsum(rr if grid.processor == 0 else 0.0)
             if probability_ratio(f1, f0) >= rr:
                 return True
-            g.copy(fields, previous_state)
+            if weights is None:
+                g.copy(fields, previous_state)
+            else:
+                assert len(weights) == len(fields)
+                for f in fields:
+                    i = fields.index(f)
+                    f @= weights[i] * previous_state[i]
             return False
 
         return accept_reject
